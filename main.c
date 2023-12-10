@@ -4,18 +4,13 @@
 #include "string.h"
 #include "stdio.h"
 
-#define LENGTH 10000
 
-#define PWIDTH 200
-#define PHEIGHT 200
+#define PWIDTH  1000
+#define PHEIGHT 1000
 #define CHANNELS 3 // RGB channels
 
-#define CX 0
-#define CY 0
-#define CZ 0
+#define WIDTH 50
 
-static int INT[LENGTH];
-static float FLOAT[LENGTH];
 static int objects = 100;
 
 
@@ -45,6 +40,10 @@ struct camera{
     int r, g, b;
 };
 
+struct sphere * defineSphere( struct sphere *fScene, float x, float y, float z, float R, float reflectivity, int r, int g, int b);
+
+void pixelPoint(float width, float *pixelGridX, float *pixelGridY, float *pixelGridZ);
+
 void castRay(int *out, struct ray ray, struct sphere scene[], struct sphere *fScene, struct ground ground, struct camera camera);
 void findIntersection(float* arr, struct ray ray, struct sphere scene[], struct sphere* fScene, struct ground ground);
 float findSphereIntersection(struct sphere sphere, struct ray ray);
@@ -55,30 +54,49 @@ void sphereReflect(float *out, float X, float Y, float Z, float a, float b, floa
 
 void groundReflect(float *out, float a, float b, float c);
 
+static float pixelGridX[PWIDTH * PHEIGHT];
+static float pixelGridY[PWIDTH * PHEIGHT];
+static float pixelGridZ[PWIDTH * PHEIGHT];
+
 
 
 int main() {
+    printf("a");
 
 
+    struct ground ground = {-10, 0, 255, 255, 255, 0, 0, 0};
 
-    //struct ray rayTest = {1, 2, 3, 4, 5, 6, 7};
-    //struct sphere sphereTest = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 6, 7, 8};
-    //struct ground groundTest = {1, 2, 3, 4, 5, 6, 7, 8};
+    struct camera main = {0, 0, 0, 0, 0, 0};
+
+    struct sphere scene[100];
+    struct sphere *fScene = scene;
+
+    fScene = defineSphere(fScene, 20, 100, 0, 5, 0, 0, 255, 0);
 
 
+    pixelPoint(WIDTH, pixelGridX, pixelGridY, pixelGridZ);
 
-    float direction[PWIDTH * PHEIGHT * 3];
+
+    //float direction[PWIDTH * PHEIGHT * 3];
 
     // Create a blank image
     unsigned char* image = (unsigned char*)malloc(PWIDTH * PHEIGHT * CHANNELS);
-    memset(image, 255, PWIDTH * PHEIGHT * PHEIGHT);  // Set all pixels to white
+    memset(image, 255, PWIDTH * PHEIGHT * CHANNELS);
+
+
 
     // Set every other pixel in the 50th row to red
     for (int x = 0; x < PWIDTH; x++) {
-        if (x % 2 == 0) {
-            image[3 * (x + 49 * PWIDTH) + 0] = 255;  // Red channel
-            image[3 * (x + 49 * PWIDTH) + 1] = 0;    // Green channel
-            image[3 * (x + 49 * PWIDTH) + 2] = 0;    // Blue channel
+        for (int y = 0; y < PHEIGHT; y++) {
+            if (x % 2 == 0) {
+                struct ray current = {main.x, main.y, main.z, pixelGridX[x + y * PWIDTH], pixelGridY[x + y * PWIDTH], pixelGridZ[x + y * PWIDTH], 3};
+                int color[3];
+                castRay(color, current, scene, fScene, ground, main);
+
+                image[3 * (x + y * PWIDTH) + 0] = color[0];  // Red channel
+                image[3 * (x + y * PWIDTH) + 1] = color[1];  // Green channel
+                image[3 * (x + y * PWIDTH) + 2] = color[2];  // Blue channel
+            }
         }
     }
 
@@ -92,6 +110,42 @@ int main() {
     return 0;
 
 }
+
+struct sphere * defineSphere( struct sphere *fScene, float x, float y, float z, float R, float reflectivity, int r, int g, int b){
+    fScene->x = x;
+    fScene->y = y;
+    fScene->z = z;
+    fScene->R = R;
+    fScene->reflectivity = reflectivity;
+    fScene->color[0] = r;
+    fScene->color[1] = g;
+    fScene->color[2] = b;
+
+    return fScene++;
+}
+
+
+void pixelPoint(float width, float *pixelGridX, float *pixelGridY, float *pixelGridZ) {
+
+    float height = PHEIGHT * width / PWIDTH;
+
+    float deltaPixelX = width / PWIDTH;
+    float deltaPixelY = height / PHEIGHT;
+
+    for (int pX = 0; pX < PWIDTH; pX++) {
+        float xCord = (deltaPixelX / 2) - (width / 2) + (pX * deltaPixelX);
+
+        for (int pY = 0; pY < PHEIGHT; pY++) {
+
+            pixelGridY[pX + pY * PWIDTH] = xCord;
+            pixelGridX[pX + pY * PWIDTH] = 1;
+            pixelGridZ[pX + pY * PWIDTH] = (height / 2) - (deltaPixelY / 2) - (pY * deltaPixelY);
+
+        }
+    }
+
+}
+
 
 void castRay(int *out, struct ray ray, struct sphere scene[], struct sphere *fScene, struct ground ground, struct camera camera) {
 
@@ -147,6 +201,12 @@ void castRay(int *out, struct ray ray, struct sphere scene[], struct sphere *fSc
     *(out+0) = (int) (direct[0] * (1 - reflectivity) + reflect[0] * reflectivity);
     *(out+1) = (int) (direct[1] * (1 - reflectivity) + reflect[1] * reflectivity);
     *(out+2) = (int) (direct[2] * (1 - reflectivity) + reflect[2] * reflectivity);
+
+    for (int i = 0; i < 3; i++) {
+        if (*(out + i) > 255){
+            *(out+0) = 255;
+        }
+    }
 
 }
 
