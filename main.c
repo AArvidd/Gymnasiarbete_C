@@ -2,16 +2,16 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #include "string.h"
-#include "stdio.h"
+#include "time.h"
 
 
-#define PWIDTH  1000
-#define PHEIGHT 1000
+#define PWIDTH  5000
+#define PHEIGHT 5000
 #define CHANNELS 3 // RGB channels
 
-#define WIDTH 50
+#define WIDTH 2
 
-static int objects = 100;
+static int objects = 0;
 
 
 struct ray{
@@ -30,9 +30,8 @@ struct sphere{
 struct ground{
     float z;
     float reflectivity;
-    float r1, g1, b1;
-    float r2, g2, b2;
-    int color[3];
+    int r1, g1, b1;
+    int r2, g2, b2;
 };
 
 struct camera{
@@ -50,9 +49,9 @@ float findSphereIntersection(struct sphere sphere, struct ray ray);
 float findGroundIntersection(struct ground ground, struct ray ray);
 
 void sphereReflect(float *out, float X, float Y, float Z, float a, float b, float c, struct sphere sphere);
-
-
 void groundReflect(float *out, float a, float b, float c);
+
+void getGroundColor(int *out, struct ground ground, float x, float y);
 
 static float pixelGridX[PWIDTH * PHEIGHT];
 static float pixelGridY[PWIDTH * PHEIGHT];
@@ -61,23 +60,29 @@ static float pixelGridZ[PWIDTH * PHEIGHT];
 
 
 int main() {
-    printf("a");
 
+    clock_t time;
 
-    struct ground ground = {-10, 0, 255, 255, 255, 0, 0, 0};
+    struct ground ground = {-20, 0.25f, 0, 0, 0, 255, 255, 255};
 
     struct camera main = {0, 0, 0, 0, 0, 0};
 
     struct sphere scene[100];
     struct sphere *fScene = scene;
 
-    fScene = defineSphere(fScene, 20, 100, 0, 5, 0, 0, 255, 0);
-
+    fScene = defineSphere(fScene, 30, 0, 0, 10, 0.5f, 255, 0, 255);
+    fScene = defineSphere(fScene, 20, -20, 0, 5, 0.25f, 0, 0, 255);
+    fScene = defineSphere(fScene, 50, 0, 20, 10, 0.5f, 255, 0, 0);
+    fScene = defineSphere(fScene, 100, 100, 10, 40, 1, 255, 255, 255);
+    fScene = defineSphere(fScene, 10, 0, 10, 5, 0.5f, 0, 255, 0);
+    fScene = defineSphere(fScene, -10, 0, 0, 5, 0, 255, 255, 255);
+    fScene = defineSphere(fScene, 0, 20, 0, 5, 0, 0, 255, 255);
+    fScene = defineSphere(fScene, 100, 100, 100, 10, 0.1f, 255, 255, 0);
+    fScene = defineSphere(fScene, -100, -100, 0, 10, 0, 0, 0, 255);
+    fScene = defineSphere(fScene, 100, -100, 100, 10, 0, 128, 128, 128);
 
     pixelPoint(WIDTH, pixelGridX, pixelGridY, pixelGridZ);
-
-
-    //float direction[PWIDTH * PHEIGHT * 3];
+    
 
     // Create a blank image
     unsigned char* image = (unsigned char*)malloc(PWIDTH * PHEIGHT * CHANNELS);
@@ -86,26 +91,30 @@ int main() {
 
 
     // Set every other pixel in the 50th row to red
-    for (int x = 0; x < PWIDTH; x++) {
-        for (int y = 0; y < PHEIGHT; y++) {
-            if (x % 2 == 0) {
-                struct ray current = {main.x, main.y, main.z, pixelGridX[x + y * PWIDTH], pixelGridY[x + y * PWIDTH], pixelGridZ[x + y * PWIDTH], 3};
-                int color[3];
-                castRay(color, current, scene, fScene, ground, main);
+    for (int y = 0; y < PHEIGHT; y++) {
+        for (int x = 0; x < PWIDTH; x++) {
+            struct ray current = {main.x, main.y, main.z, pixelGridX[x + y * PWIDTH], pixelGridY[x + y * PWIDTH], pixelGridZ[x + y * PWIDTH], 3};
+            int color[3];
+            castRay(color, current, scene, fScene, ground, main);
 
-                image[3 * (x + y * PWIDTH) + 0] = color[0];  // Red channel
-                image[3 * (x + y * PWIDTH) + 1] = color[1];  // Green channel
-                image[3 * (x + y * PWIDTH) + 2] = color[2];  // Blue channel
-            }
+
+            image[3 * (x + y * PWIDTH) + 0] = color[0];  // Red channel
+            image[3 * (x + y * PWIDTH) + 1] = color[1];  // Green channel
+            image[3 * (x + y * PWIDTH) + 2] = color[2];  // Blue channel
         }
     }
 
+
+
     // Save the image as a PNG file
-    stbi_write_png("output.png", PWIDTH, PHEIGHT, CHANNELS, image, PWIDTH * CHANNELS);
+    stbi_write_png("outputC.png", PWIDTH, PHEIGHT, CHANNELS, image, PWIDTH * CHANNELS);
 
     // Clean up
     free(image);
 
+    time = clock();
+
+    printf("%f\n", (float)time / CLOCKS_PER_SEC);
 
     return 0;
 
@@ -121,7 +130,9 @@ struct sphere * defineSphere( struct sphere *fScene, float x, float y, float z, 
     fScene->color[1] = g;
     fScene->color[2] = b;
 
-    return fScene++;
+    objects++;
+
+    return ++fScene;
 }
 
 
@@ -152,6 +163,8 @@ void castRay(int *out, struct ray ray, struct sphere scene[], struct sphere *fSc
     float intersection[2];
     findIntersection(intersection, ray, scene, fScene, ground);
 
+    //printf("intersection: %f : %f \n", intersection[0], intersection[1]);
+
 
     if (intersection[1] == -2) {
         *(out+0) = camera.r;
@@ -171,9 +184,7 @@ void castRay(int *out, struct ray ray, struct sphere scene[], struct sphere *fSc
     float reflectivity;
 
     if (intersection[1] == -1) {
-        direct[0] = ground.color[0];
-        direct[1] = ground.color[1];
-        direct[2] = ground.color[2];
+        getGroundColor(direct, ground, x, y);
         groundReflect(reflectDir, ray.a, ray.b, ray.c);
         reflectivity = ground.reflectivity;
     } else {
@@ -214,9 +225,10 @@ void findIntersection(float* arr, struct ray ray, struct sphere scene[], struct 
     float intersectionLength[objects];
 
 
-    for (int i = 0; i < scene + objects - fScene; i++) {
+    for (int i = 0; i < objects; i++) {
         struct sphere current = scene[i];
-        intersectionLength[i] = findSphereIntersection(current, ray);
+        float test = findSphereIntersection(current, ray);
+        intersectionLength[i] = test;
     }
 
     float shortest = intersectionLength[0];
@@ -258,35 +270,39 @@ void findIntersection(float* arr, struct ray ray, struct sphere scene[], struct 
 }
 
 float findSphereIntersection(struct sphere sphere, struct ray ray) {
-    float t1;
-    float t2;
+    double t1;
+    double t2;
 
-    float A = ray.a, B = ray.b, C = ray.c;
-    float X = ray.x, Y = ray.y, Z = ray.z;
-    float h = sphere.x, k = sphere.y, l = sphere.z, r = sphere.R;
+    double A = ray.a, B = ray.b, C = ray.c;
+    double X = ray.x, Y = ray.y, Z = ray.z;
+    double h = sphere.x, k = sphere.y, l = sphere.z, r = sphere.R;
 
-    float a = (A * A + B * B + C * C);
-    float b = 2 * (A * (X - h) + B * (Y - k) + C * (Z - l));
-    float c = -(r * r - (X * X + Y * Y + Z * Z - 2 * (X * h + Y * k + Z * l) + h * h + k * k + l * l));
+    double a = (A * A + B * B + C * C);
+    double b = 2 * (A * (X - h) + B * (Y - k) + C * (Z - l));
+    double c = -(r * r - (X * X + Y * Y + Z * Z - 2 * (X * h + Y * k + Z * l) + h * h + k * k + l * l));
 
-    float center = -(b / (2 * a));
-    float pm = sqrtf((b * b) - (4 * a * c)) / (2 * a);
+    double center = -(b / (2 * a));
+    double pm = sqrtf((b * b) - (4 * a * c)) / (2 * a);
 
     t1 = (center + pm);
     t2 = (center - pm);
 
-    if (t1 == NAN && t2 == NAN)
+    double t;
+
+    if (isnan(t1) || isnan(t2))
         return -1;
 
-    if (t1 < 0 || t2 < 0)
+
+    if (t1 < 0.01 || t2 < 0.01)
         return -1;
 
-    float t = t1;
 
-    if (t2 < t1)
+    t = t1;
+
+    if (t2 < t1 && t2 > 0)
         t = t2;
 
-    return t;
+    return (float)t;
 }
 
 float findGroundIntersection(struct ground ground, struct ray ray) {
@@ -331,5 +347,26 @@ void groundReflect(float *out, float a, float b, float c) {
     *(out+2) = c - (2 * dot * l);
 
 
+}
+
+void getGroundColor(int *out, struct ground ground, float x, float y){
+    float size = 5;
+    if (x < 0)
+        x = x * -1 + size - 1;
+    if (y < 0)
+        y = y * -1 + size - 1;
+
+    int X = (fmodf(x, size * 2) - size) < 0;
+    int Y = (fmodf(y, size * 2) - size) < 0;
+
+    if (X == Y){
+        *(out+0) = ground.r1;
+        *(out+1) = ground.g1;
+        *(out+2) = ground.b1;
+    }else{
+        *(out+0) = ground.r2;
+        *(out+1) = ground.g2;
+        *(out+2) = ground.b2;
+    }
 }
 
